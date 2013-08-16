@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+    <arcgisonlineurl>http://www.arcgis.com</arcgisonlineurl>
+    <tokenurl>https://www.arcgis.com/sharing/generateToken</tokenurl>
+    <resultsperpage>14</resultsperpage>
+    <defaultsearch>ArcGIS</defaultsearch>
+    <defaultsortfield>avgRating</defaultsortfield>
+    <defaultsortorder>desc</defaultsortorder>
+    <columnsize>
+    </columnsize>
+</configuration>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  //////////////////////////////////////////////////////////////////
+  // Copyright (c) 2008-2013 Esri. All Rights Reserved.
+  //
+  // Licensed under the Apache License, Version 2.0 (the "License");
+  // you may not use this file except in compliance with the License.
+  // You may obtain a copy of the License at
+  //
+  //    http://www.apache.org/licenses/LICENSE-2.0
+  //
+  // Unless required by applicable law or agreed to in writing, software
+  // distributed under the License is distributed on an "AS IS" BASIS,
+  // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  // See the License for the specific language governing permissions and
+  // limitations under the License.
+  ////////////////////////////////////////////////////////////////
+-->
+<s:BorderContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+                   xmlns:s="library://ns.adobe.com/flex/spark"
+                   xmlns:mx="library://ns.adobe.com/flex/mx"
+                   width="100%" height="100%"
+                   cornerRadius="10"
+                   creationComplete="htmlPopup_creationCompleteHandler(event)">
+
+    <fx:Metadata>
+		
+		[Event(name=LoginEvent.LOGIN_PROVIDED, type="flash.events.Event")]
+		[Event(name=LoginEvent.LOGIN_CANCELLED, type="flash.events.Event")]
+	</fx:Metadata>
+
+    <s:filters>
+        <s:GlowFilter alpha="0.8"
+                      blurX="50"
+                      blurY="50"
+                      color="0xFFFFFF"
+                      quality="{BitmapFilterQuality.MEDIUM}"
+                      strength="1"/>
+    </s:filters>
+    <fx:Script>
+        <![CDATA[
+            import widgets.Portal.events.LoginEvent;
+            import com.esri.viewer.components.HTMLPopupManager;
+
+            import flash.filters.BitmapFilterQuality;
+
+            import mx.core.FlexGlobals;
+            import mx.events.CloseEvent;
+            import mx.events.FlexEvent;
+
+            public var _user:String = "";
+            public var _password:String = "";
+
+            public function show(modal:Boolean = true,
+                                 closeHandler:Function = null):PortalLoginPopup
+            {
+
+                var parent:Sprite = Sprite(FlexGlobals.topLevelApplication);
+
+                if (closeHandler != null)
+                {
+                    this.addEventListener(CloseEvent.CLOSE, closeHandler);
+                }
+
+                HTMLPopupManager.addPopUp(this, parent, modal);
+
+                return this;
+            }
+
+            protected function htmlPopup_creationCompleteHandler(event:FlexEvent):void
+            {
+                setStyle("backgroundColor", getStyle("contentBackgroundColor"));
+                setStyle("backgroundAlpha", FlexGlobals.topLevelApplication.getStyle("backgroundAlpha"));
+            }
+
+            protected function btnLogin_clickHandler(event:MouseEvent):void
+            {
+                _user = txtUser.text;
+                _password = txtPassword.text;
+
+                HTMLPopupManager.removePopUp(this);
+                dispatchEvent(new CloseEvent(CloseEvent.CLOSE));
+                dispatchEvent(new LoginEvent(_user, _password, LoginEvent.LOGIN_PROVIDED));
+            }
+
+            protected function btnCancel_clickHandler(event:MouseEvent):void
+            {
+                _user = "";
+                _password = "";
+
+                HTMLPopupManager.removePopUp(this);
+                dispatchEvent(new CloseEvent(CloseEvent.CLOSE));
+                dispatchEvent(new LoginEvent("", "", LoginEvent.LOGIN_CANCELLED));
+            }
+        ]]>
+    </fx:Script>
+    <fx:Declarations>
+        <!-- Place non-visual elements (e.g., services, value objects) here -->
+    </fx:Declarations>
+    <s:RectangularDropShadow id="dropShadow"
+                             left="0" right="0" top="0" bottom="0"
+                             alpha="0.1"
+                             angle="90"
+                             blRadius="10"
+                             blurX="20"
+                             blurY="20"
+                             brRadius="10"
+                             distance="25"/>
+    <s:VGroup horizontalAlign="center"
+              paddingBottom="15"
+              paddingLeft="15"
+              paddingRight="15"
+              paddingTop="15">
+        <s:Label id="lblLogin" text="ArcGIS Online Login:"/>
+        <s:HGroup id="userGroup" gap="8">
+            <s:Label id="lblUser" text="Username:"/>
+            <s:TextInput id="txtUser" text=""/>
+        </s:HGroup>
+        <s:HGroup id="passwordGroup" gap="8">
+            <s:Label id="lblPassword" text="Password:"/>
+            <s:TextInput id="txtPassword"
+                         displayAsPassword="true"
+                         text=""/>
+        </s:HGroup>
+        <s:HGroup id="btnGroup" gap="8">
+            <s:Button id="btnLogin"
+                      click="btnLogin_clickHandler(event)"
+                      label="Login"/>
+            <s:Button id="btnCancel"
+                      click="btnCancel_clickHandler(event)"
+                      label="Cancel"/>
+        </s:HGroup>
+    </s:VGroup>
+
+</s:BorderContainer>

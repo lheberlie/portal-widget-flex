@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+    <openbydefault>false</openbydefault>
+    <icon>assets/images/i_portal_icon.png</icon>
+    <label>Portal</label>
+    <description>ArcGIS Viewer for Flex Portal widget v3.4.0</description>
+    <widgetversion>3.4.0</widgetversion>
+</configuration>

@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  //////////////////////////////////////////////////////////////////
+  // Copyright (c) 2008-2013 Esri. All Rights Reserved.
+  //
+  // Licensed under the Apache License, Version 2.0 (the "License");
+  // you may not use this file except in compliance with the License.
+  // You may obtain a copy of the License at
+  //
+  //    http://www.apache.org/licenses/LICENSE-2.0
+  //
+  // Unless required by applicable law or agreed to in writing, software
+  // distributed under the License is distributed on an "AS IS" BASIS,
+  // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  // See the License for the specific language governing permissions and
+  // limitations under the License.
+  ////////////////////////////////////////////////////////////////
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+                   xmlns:s="library://ns.adobe.com/flex/spark"
+                   xmlns:mx="library://ns.adobe.com/flex/mx"
+                   xmlns:viewer="com.esri.viewer.*"
+                   xmlns:esri="http://www.esri.com/2008/ags"
+                   xmlns:renderers="widgets.Portal.renderers.*"
+                   xmlns:components="widgets.Portal.components.*"
+                   currentState="loggedout"
+                   widgetConfigLoaded="init()">
+
+    <viewer:states>
+        <s:State name="loggedin"/>
+        <s:State name="loggedout"/>
+    </viewer:states>
+
+    <fx:Script>
+        <![CDATA[
+            import com.esri.ags.events.PortalEvent;
+            import com.esri.ags.layers.ArcGISDynamicMapServiceLayer;
+            import com.esri.ags.layers.ArcGISImageServiceLayer;
+            import com.esri.ags.layers.FeatureLayer;
+            import com.esri.ags.layers.KMLLayer;
+            import com.esri.ags.layers.Layer;
+            import com.esri.ags.portal.supportClasses.PortalItem;
+            import com.esri.ags.portal.supportClasses.PortalQueryParameters;
+            import com.esri.ags.portal.supportClasses.PortalQueryResult;
+
+            import mx.collections.ArrayList;
+            import mx.controls.Alert;
+            import mx.rpc.events.FaultEvent;
+
+            import widgets.Portal.components.PortalLoginPopup;
+            import widgets.Portal.components.SortObject;
+            import widgets.Portal.events.AddToMapEvent;
+            import widgets.Portal.events.LoginEvent;
+            import widgets.Portal.events.PortalQueryEvent;
+            import widgets.Portal.events.SortByEvent;
+
+
+            private var _defaultSortField:String = "";
+            private var _defaultSortLabel:String = "";
+            private var _defaultSortOrder:String = "";
+            private var _numberPerPage:int = 14; //default
+
+            [Bindable]
+            private var _numberColumns:int = 1; //default
+
+            [Bindable]
+            private var _searchText:String = "";
+
+            [Bindable]
+            private var _searchTotal:int = 0;
+
+            [Bindable]
+            public var username:String;
+
+            [Bindable]
+            public var password:String;
+
+            [Bindable]
+            private var _tokenURL:String = "";
+
+            [Bindable]
+            private var _arcgisOnlineURL:String = "";
+
+            [Bindable]
+            private var lastQueryResult:PortalQueryResult;
+
+            [Bindable]
+            private var lastQueryString:String;
+
+            [Bindable]
+            private var lastSortOrder:SortObject;
+
+            [Bindable]
+            private var portalItemsArrayList:ArrayList;
+
+
+            private var defaultQueryParameters:PortalQueryParameters;
+
+            protected function init():void
+            {
+                if (configXML)
+                {
+                    trace("loaded XML");
+
+                    _tokenURL = configXML.tokenurl;
+                    _arcgisOnlineURL = configXML.arcgisonlineurl;
+                    _numberPerPage = configXML.resultsperpage;
+                    _numberColumns = (configXML.columnsize == "full") ? 2 : 1;
+
+                    _searchText = configXML.defaultsearch;
+
+                    portalArcGIS.url = _arcgisOnlineURL;
+
+
+                    /*  ADD THIS TO ADD TO DEFAULT SORTING CAPABILITY */
+
+                    _defaultSortField = (configXML.defaultsortfield == "") ? null : configXML.defaultsortfield;
+                    _defaultSortLabel = (configXML.defaultsortfield == "") ? null : resourceManager.getString('PortalWidgetStrings', configXML.defaultsortfield);
+                    _defaultSortOrder = (configXML.defaultsortorder != PortalQueryParameters.ASCENDING_SORT &&
+                        configXML.defaultsortorder != PortalQueryParameters.DESCENDING_SORT) ? PortalQueryParameters.ASCENDING_SORT : configXML.defaultsortorder;
+
+                    portalArcGIS.url = _arcgisOnlineURL;
+
+                    lastSortOrder = new SortObject(_defaultSortField, _defaultSortLabel, _defaultSortOrder);
+                    //lastSortOrder = new SortObject(null, 'relevance', PortalQueryParameters.ASCENDING_SORT);
+
+                    defaultQueryParameters = new PortalQueryParameters();
+                    defaultQueryParameters.withLimit(_numberPerPage);
+                    defaultQueryParameters.withQuery('+type:("KML" OR "Image Service" OR "Map Service" OR "Feature Service" OR "WMS" OR "WMTS")');
+                    portalArcGIS.load();
+
+                    var arSort:Array = new Array();
+                    var obj:Object = { value: null, label: resourceManager.getString('PortalWidgetStrings', 'relevance')};
+                    arSort.push(obj);
+                    obj = { value: 'title', label: resourceManager.getString('PortalWidgetStrings', 'title')};
+                    arSort.push(obj);
+                    obj = { value: 'owner', label: resourceManager.getString('PortalWidgetStrings', 'owner')};
+                    arSort.push(obj);
+                    obj = { value: 'avgRating', label: resourceManager.getString('PortalWidgetStrings', 'avgRating')};
+                    arSort.push(obj);
+                    obj = { value: 'numViews', label: resourceManager.getString('PortalWidgetStrings', 'numViews')};
+                    arSort.push(obj);
+                    obj = { value: 'created', label: resourceManager.getString('PortalWidgetStrings', 'created')};
+                    arSort.push(obj);
+
+                    sorter.options = arSort;
+                    sorter.selectedSort = lastSortOrder;
+                    sorter.addEventListener("sortClick", sorter_sortClickHandler);
+                    addEventListener("addSearchItem", addMapLayer);
+                }
+            }
+
+            protected function addMapLayer(event:AddToMapEvent):void
+            {
+                trace("addMapLayer");
+
+                var pItem:PortalItem = event.item;
+                var layer:Layer;
+
+                switch (pItem.type)
+                {
+                    case PortalItem.TYPE_FEATURE_SERVICE:
+                    {
+                        layer = new FeatureLayer(pItem.url);
+                        break;
+                    }
+                    case PortalItem.TYPE_MAP_SERVICE:
+                    {
+                        layer = new ArcGISDynamicMapServiceLayer(pItem.url);
+                        break;
+                    }
+                    case PortalItem.TYPE_KML_SERVICE:
+                    {
+                        layer = new KMLLayer(pItem.url);
+                        break;
+                    }
+                    case PortalItem.TYPE_IMAGE_SERVICE:
+                    {
+                        layer = new ArcGISImageServiceLayer(pItem.url);
+                        break;
+                    }
+                    default:
+                    {
+                        Alert.show(pItem.type + " type not implemented in this sample.", "Unable to process layer type.");
+                        break;
+                    }
+                }
+
+                if (layer)
+                {
+                    layer.name = pItem.title;
+                    map.addLayer(layer);
+                }
+            }
+
+            protected function lblLogin_clickHandler(event:MouseEvent):void
+            {
+                //re-search
+                if (this.currentState == "loggedin")
+                {
+                    this.setCurrentState("loggedout");
+                    username = "";
+                    password = "";
+
+                    portalArcGIS.signOut();
+                }
+                else
+                {
+                    var alert:PortalLoginPopup = new PortalLoginPopup();
+                    alert.addEventListener(LoginEvent.LOGIN_PROVIDED, loginProvided);
+                    alert.addEventListener(LoginEvent.LOGIN_CANCELLED, loginCancelled);
+                    alert.show(true);
+                }
+            }
+
+            protected function loginProvided(event:widgets.Portal.events.LoginEvent):void
+            {
+                trace("Provided");
+                username = event.username;
+                password = event.password;
+                this.setCurrentState("loggedin");
+
+                portalArcGIS.signInWithCredentials(username, password);
+            }
+
+            protected function loginCancelled(event:LoginEvent):void
+            {
+                trace("Cancelled");
+            }
+
+            protected function portalArcGIS_loadHandler(event:PortalEvent):void
+            {
+                trace("loadHandler");
+
+                if (portalArcGIS.signedIn)
+                {
+                    LoginStatusLabel.text = "Logged in: " + username;
+                }
+                else
+                {
+                    LoginStatusLabel.text = resourceManager.getString('PortalWidgetStrings', 'getPublicOnly');
+                }
+                portalArcGIS_sendQueryItems(_searchText);
+            }
+
+
+            protected function portalArcGIS_sendQueryItems(queryString:String):void
+            {
+                trace("sendQueryItems");
+
+                _searchText = queryString;
+                lastQueryString = queryString;
+
+                var queryParameters:PortalQueryParameters = defaultQueryParameters.clone();
+                queryParameters.sortField = lastSortOrder.sortField;
+                queryParameters.sortOrder = lastSortOrder.sortOrder;
+                queryParameters.addQueryCondition(queryString);
+                portalArcGIS.queryItems(queryParameters);
+            }
+
+            protected function portalPager_newQueryHandler(event:PortalQueryEvent):void
+            {
+                trace("new pager query");
+
+                portalArcGIS.queryItems(event.queryParameters);
+            }
+
+            protected function portalArcGIS_queryItemsCompleteHandler(event:PortalEvent):void
+            {
+                trace("queryItemsComplete");
+
+                lastQueryResult = event.queryResult as PortalQueryResult;
+                _searchTotal = lastQueryResult.totalResults;
+                var resultsArray:Array = lastQueryResult.results;
+                var numResults:int = resultsArray.length;
+
+                portalItemsList.selectedIndex = -1;
+                if (numResults > 0)
+                {
+                    portalItemsArrayList = new ArrayList(resultsArray);
+                    portalItemsList.selectedItem = null;
+                }
+            }
+
+            protected function portalArcGIS_faultHandler(event:FaultEvent):void
+            {
+                trace("faultHandler");
+            }
+
+            protected function sorter_sortClickHandler(event:SortByEvent):void
+            {
+                trace("sortClickHandler");
+
+                lastSortOrder = event.currentTarget.selectedSort;
+
+                portalArcGIS_sendQueryItems(lastQueryString);
+            }
+        ]]>
+    </fx:Script>
+
+    <fx:Declarations>
+        <s:DateTimeFormatter id="lastModifiedDateFormatter" dateStyle="medium"/>
+
+        <esri:Portal id="portalArcGIS"
+                     fault="portalArcGIS_faultHandler(event)"
+                     load="portalArcGIS_loadHandler(event)"
+                     queryItemsComplete="portalArcGIS_queryItemsCompleteHandler(event)"/>
+    </fx:Declarations>
+
+    <viewer:WidgetTemplate id="portalWidget"
+                           width="{70 + (_numberColumns * 400)}" height="550">
+        <viewer:layout>
+            <s:VerticalLayout horizontalAlign="center" verticalAlign="middle"/>
+        </viewer:layout>
+
+
+        <s:HGroup width="100%" verticalAlign="middle">
+
+            <components:PromptTextInput id="searchTextInput"
+                                        width="50%"
+                                        enter="portalArcGIS_sendQueryItems(searchTextInput.text)"
+                                        promptText="@Resource(key='searchPrompt', bundle='PortalWidgetStrings')"
+                                        skinClass="widgets.Portal.skins.PromptTextInputSkin"/>
+
+            <components:IconButton id="searchButton"
+                                   click="portalArcGIS_sendQueryItems(searchTextInput.text)"
+                                   imageSource="@Embed(source='./assets/images/i_generic_search.png')"
+                                   skinClass="widgets.Portal.skins.IconButtonSkin"
+                                   toolTip="@Resource(key='search', bundle='PortalWidgetStrings')"/>
+
+            <s:Label width="50%"
+                     maxDisplayedLines="1"
+                     showTruncationTip="true"
+                     text="{_searchTotal.toString()+ ' ' + resourceManager.getString('PortalWidgetStrings', 'resultsFor')} '{_searchText}'"/>
+        </s:HGroup>
+        <s:HGroup width="100%" horizontalAlign="right">
+            <s:Label id="LoginStatusLabel" styleName="red"/>
+            <s:Spacer width="100%"/>
+            <s:Label id="lblLogin"
+                     buttonMode="true"
+                     click="lblLogin_clickHandler(event)"
+                     mouseChildren="false"
+                     text.loggedin="Logout"
+                     text.loggedout="Login"
+                     useHandCursor="true"/>
+        </s:HGroup>
+
+        <s:VGroup width="100%"
+                  paddingBottom="0"
+                  paddingTop="5">
+            <mx:HRule width="100%"/>
+        </s:VGroup>
+
+        <s:VGroup id="searchResults"
+                  width="100%" height="100%">
+            <s:HGroup width="100%" verticalAlign="middle">
+                <s:Spacer width="100%"/>
+                <components:SortBy id="sorter"/>
+            </s:HGroup>
+
+            <s:BorderContainer width="100%" height="100%"
+                               alpha="{getStyle('contentBackgroundAlpha')}"
+                               backgroundColor="{getStyle('contentBackgroundColor')}"
+                               borderVisible="true"
+                               borderWeight="1">
+                <s:List id="portalItemsList"
+                        width="100%" height="99%"
+                        allowMultipleSelection="false"
+                        borderVisible="false"
+                        dataProvider="{portalItemsArrayList}">
+                    <s:layout>
+                        <s:TileLayout paddingBottom="2"
+                                      paddingLeft="2"
+                                      paddingTop="2"
+                                      requestedColumnCount="{_numberColumns}"/>
+                    </s:layout>
+                    <s:itemRenderer>
+                        <fx:Component>
+                            <renderers:PortalItemItemRenderer/>
+                        </fx:Component>
+                    </s:itemRenderer>
+                </s:List>
+
+            </s:BorderContainer>
+            <components:PortalQueryResultPager id="portalPager"
+                                               width="100%"
+                                               newQuery="portalPager_newQueryHandler(event)"
+                                               queryResult="{lastQueryResult}"
+                                               skinClass="widgets.Portal.skins.PortalQueryResultPagerSkin"/>
+        </s:VGroup>
+    </viewer:WidgetTemplate>
+</viewer:BaseWidget>

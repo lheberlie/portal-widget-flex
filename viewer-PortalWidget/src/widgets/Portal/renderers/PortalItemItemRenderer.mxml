@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  //////////////////////////////////////////////////////////////////
+  // Copyright (c) 2008-2013 Esri. All Rights Reserved.
+  //
+  // Licensed under the Apache License, Version 2.0 (the "License");
+  // you may not use this file except in compliance with the License.
+  // You may obtain a copy of the License at
+  //
+  //    http://www.apache.org/licenses/LICENSE-2.0
+  //
+  // Unless required by applicable law or agreed to in writing, software
+  // distributed under the License is distributed on an "AS IS" BASIS,
+  // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  // See the License for the specific language governing permissions and
+  // limitations under the License.
+  ////////////////////////////////////////////////////////////////
+-->
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+                xmlns:s="library://ns.adobe.com/flex/spark"
+                xmlns:mx="library://ns.adobe.com/flex/mx"
+                xmlns:components1="widgets.Portal.components.*">
+    <s:states>
+        <s:State name="normal"/>
+        <s:State name="hovered"/>
+        <s:State name="selected"/>
+    </s:states>
+
+    <fx:Script>
+        <![CDATA[
+            import widgets.Portal.events.AddToMapEvent;
+            import com.esri.ags.portal.supportClasses.PortalItem;
+
+            protected function addClickHandler(event:MouseEvent):void
+            {
+                var addEvent:AddToMapEvent = new AddToMapEvent(data as PortalItem, AddToMapEvent.TYPE, true);
+                dispatchEvent(addEvent);
+            }
+        ]]>
+    </fx:Script>
+
+
+    <fx:Declarations>
+        <s:DateTimeFormatter id="dateTimeFormatter" dateTimePattern="MMMM d, yyyy"/>
+    </fx:Declarations>
+
+    <!-- drop shadow can't be hittable so it stays sibling of other graphics -->
+    <!--- @private -->
+    <s:Rect left="0" right="0" top="0" bottom="0"
+            radiusX="5"
+            radiusY="5">
+        <s:fill>
+            <s:SolidColor alpha="{getStyle('contentBackgroundAlpha')}" color="{getStyle('contentBackgroundColor')}"/>
+        </s:fill>
+        <s:stroke>
+            <mx:SolidColorStroke alpha.hovered="0.5"
+                                 color.hovered="{getStyle('selectionColor')}"
+                                 color.normal="{getStyle('color')}"
+                                 color.selected="{getStyle('selectionColor')}"
+                                 weight.hovered="1"
+                                 weight.normal="0"
+                                 weight.selected="2"/>
+        </s:stroke>
+    </s:Rect>
+    <s:VGroup width="400"
+              paddingBottom="5"
+              paddingLeft="5"
+              paddingRight="5"
+              paddingTop="5"
+              verticalAlign="top">
+
+        <s:Label width="100%"
+                 color="{getStyle('focusColor')}"
+                 fontSize="12"
+                 fontWeight="bold"
+                 text="{data.title}"/>
+
+        <s:HGroup width="100%">
+            <s:VGroup width="{thumbnailImage.width + 8}">
+                <s:BorderContainer width="{thumbnailImage.width + 8}" height="{thumbnailImage.height + 8}"
+                                   cornerRadius="4"
+                                   horizontalCenter="0"
+                                   verticalCenter="0">
+                    <s:filters>
+                        <s:DropShadowFilter alpha="0.3"
+                                            angle="45"
+                                            distance="3"/>
+                    </s:filters>
+
+                    <s:Group horizontalCenter="0" verticalCenter="0">
+                        <s:Image id="thumbnailImage"
+                                 width="100" height="66.5"
+                                 horizontalAlign="center"
+                                 skinClass="widgets.Portal.skins.OpenWebmapThumbnailSkin"
+                                 smooth="true"
+                                 source="{data.thumbnailURL}"
+                                 verticalAlign="middle"/>
+                    </s:Group>
+                </s:BorderContainer>
+                <s:HGroup>
+                    <mx:LinkButton click="addClickHandler(event)"
+                                   fontWeight="normal"
+                                   label="Add"
+                                   styleName="linkButton"/>
+
+                    <mx:LinkButton click="navigateToURL(new URLRequest(data.portal.url + '/home/item.html?id=' + data.id), '_blank')"
+                                   fontWeight="normal"
+                                   label="Details"
+                                   styleName="linkButton"/>
+                </s:HGroup>
+            </s:VGroup>
+
+            <s:VGroup width="280">
+                <s:Label width="100%" text="{data.snippet}"/>
+                <s:HGroup verticalAlign="middle">
+                    <s:Image source="{'http://www.arcgis.com/home/images/layers16.png'}"/>
+                    <s:Label text="{data.type} by {data.owner}"/>
+                </s:HGroup>
+                <s:Label text="Last Modified: {dateTimeFormatter.format(data.modified)}"/>
+                <s:HGroup verticalAlign="bottom">
+                    <components1:StarRatingComponent data="{data.avgRating}"/>
+                    <s:Label text="({data.numRatings} rating, {data.numViews} views)"/>
+                </s:HGroup>
+            </s:VGroup>
+        </s:HGroup>
+    </s:VGroup>
+</s:ItemRenderer>
