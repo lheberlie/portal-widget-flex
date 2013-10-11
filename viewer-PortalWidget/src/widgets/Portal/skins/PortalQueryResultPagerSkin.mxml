@@ -42,7 +42,8 @@
               cornerRadius="3"
               enabled="{hostComponent.hasPrevious}"
               fontSize="12"
-              label="Previous"/>
+              label="Previous"
+              visible="{hostComponent.hasPrevious}"/>
 
     <s:List id="pageList"
             height="100%"
@@ -91,6 +92,7 @@
               cornerRadius="3"
               enabled="{hostComponent.hasNext}"
               fontSize="12"
-              label="Next"/>
+              label="Next"
+              visible="{hostComponent.hasNext}"/>
 
 </s:Skin>
