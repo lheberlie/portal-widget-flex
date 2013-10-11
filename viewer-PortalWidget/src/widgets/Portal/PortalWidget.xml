@@ -2,7 +2,7 @@
 <configuration>
     <arcgisonlineurl>http://www.arcgis.com</arcgisonlineurl>
     <tokenurl>https://www.arcgis.com/sharing/generateToken</tokenurl>
-    <resultsperpage>14</resultsperpage>
+    <resultsperpage>10</resultsperpage>
     <defaultsearch>ArcGIS</defaultsearch>
     <defaultsortfield>avgRating</defaultsortfield>
     <defaultsortorder>desc</defaultsortorder>
