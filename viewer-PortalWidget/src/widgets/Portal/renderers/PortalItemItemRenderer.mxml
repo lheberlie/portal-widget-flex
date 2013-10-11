@@ -19,7 +19,8 @@
 <s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
                 xmlns:s="library://ns.adobe.com/flex/spark"
                 xmlns:mx="library://ns.adobe.com/flex/mx"
-                xmlns:components1="widgets.Portal.components.*">
+                xmlns:components1="widgets.Portal.components.*"
+                autoDrawBackground="false">
     <s:states>
         <s:State name="normal"/>
         <s:State name="hovered"/>
@@ -50,16 +51,19 @@
             radiusX="5"
             radiusY="5">
         <s:fill>
-            <s:SolidColor alpha="{getStyle('contentBackgroundAlpha')}" color="{getStyle('contentBackgroundColor')}"/>
+            <s:SolidColor alpha="{getStyle('contentBackgroundAlpha')}"
+                          alpha.hovered="1"
+                          alpha.selected="1"
+                          color="{getStyle('contentBackgroundColor')}"/>
         </s:fill>
         <s:stroke>
-            <mx:SolidColorStroke alpha.hovered="0.5"
-                                 color.hovered="{getStyle('selectionColor')}"
-                                 color.normal="{getStyle('color')}"
-                                 color.selected="{getStyle('selectionColor')}"
-                                 weight.hovered="1"
-                                 weight.normal="0"
-                                 weight.selected="2"/>
+            <s:SolidColorStroke alpha.hovered="0.5"
+                                color.hovered="{getStyle('selectionColor')}"
+                                color.normal="{getStyle('color')}"
+                                color.selected="{getStyle('selectionColor')}"
+                                weight.hovered="1"
+                                weight.normal="0"
+                                weight.selected="2"/>
         </s:stroke>
     </s:Rect>
     <s:VGroup width="400"
