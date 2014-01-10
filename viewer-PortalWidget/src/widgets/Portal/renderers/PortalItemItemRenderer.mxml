@@ -19,7 +19,10 @@
 <s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
                 xmlns:s="library://ns.adobe.com/flex/spark"
                 xmlns:mx="library://ns.adobe.com/flex/mx"
+                xmlns:components="com.esri.ags.samples.components.*"
+                xmlns:Portal="widgets.Portal.*"
                 xmlns:components1="widgets.Portal.components.*">
+	
     <s:states>
         <s:State name="normal"/>
         <s:State name="hovered"/>
@@ -28,14 +31,30 @@
 
     <fx:Script>
         <![CDATA[
-            import widgets.Portal.events.AddToMapEvent;
+            import com.esri.ags.events.ZoomEvent;
             import com.esri.ags.portal.supportClasses.PortalItem;
-
+			
+            import mx.controls.Alert;
+            import mx.events.FlexEvent;
+			
+            import widgets.Portal.events.AddToMapEvent;
+            import widgets.Portal.events.ZoomToEvent;
+			
             protected function addClickHandler(event:MouseEvent):void
             {
-                var addEvent:AddToMapEvent = new AddToMapEvent(data as PortalItem, AddToMapEvent.TYPE, true);
+	    	var addEvent:AddToMapEvent = new AddToMapEvent(data as PortalItem, AddToMapEvent.TYPE,false, true);
                 dispatchEvent(addEvent);
             }
+			
+	/**
+	 * This function zooms the map to default extent of layer if extent is present.
+	 */
+            protected function zoomToHandler(event:MouseEvent):void
+            {
+	    	var ZoomToMapEvent:ZoomToEvent=new ZoomToEvent(data as PortalItem, ZoomToEvent.TYPE, true);
+	    	dispatchEvent(ZoomToMapEvent);
+            }
+			
         ]]>
     </fx:Script>
 
@@ -51,6 +70,7 @@
             radiusY="5">
         <s:fill>
             <s:SolidColor alpha="{getStyle('contentBackgroundAlpha')}" color="{getStyle('contentBackgroundColor')}"/>
+						  
         </s:fill>
         <s:stroke>
             <mx:SolidColorStroke alpha.hovered="0.5"
@@ -97,17 +117,26 @@
                                  verticalAlign="middle"/>
                     </s:Group>
                 </s:BorderContainer>
-                <s:HGroup>
-                    <mx:LinkButton click="addClickHandler(event)"
-                                   fontWeight="normal"
-                                   label="Add"
-                                   styleName="linkButton"/>
+                <s:VGroup horizontalAlign="center">
+					
+	                <s:HGroup>
+	                    <mx:LinkButton click="addClickHandler(event)"
+	                                   fontWeight="normal"
+	                                   label="Add"
+	                                   styleName="linkButton"/>
 
-                    <mx:LinkButton click="navigateToURL(new URLRequest(data.portal.url + '/home/item.html?id=' + data.id), '_blank')"
+	                    <mx:LinkButton click="navigateToURL(new URLRequest(data.portal.url + '/home/item.html?id=' + data.id), '_blank')"
+	                                   fontWeight="normal"
+	                                   label="Details"
+	                                   styleName="linkButton"/>
+	                </s:HGroup>
+					
+	                <mx:LinkButton click="zoomToHandler(event)"
                                    fontWeight="normal"
-                                   label="Details"
+		                   label="Zoom To"
                                    styleName="linkButton"/>
-                </s:HGroup>
+                </s:VGroup>
+				
             </s:VGroup>
 
             <s:VGroup width="280">

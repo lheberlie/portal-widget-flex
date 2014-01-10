@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  //////////////////////////////////////////////////////////////////
+  // Copyright (c) 2008-2013 Esri. All Rights Reserved.
+  //
+  // Licensed under the Apache License, Version 2.0 (the "License");
+  // you may not use this file except in compliance with the License.
+  // You may obtain a copy of the License at
+  //
+  //    http://www.apache.org/licenses/LICENSE-2.0
+  //
+  // Unless required by applicable law or agreed to in writing, software
+  // distributed under the License is distributed on an "AS IS" BASIS,
+  // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  // See the License for the specific language governing permissions and
+  // limitations under the License.
+  ////////////////////////////////////////////////////////////////
+-->
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				autoDrawBackground="true" dataChange="itemrenderer1_dataChangeHandler(event)">
+	
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.tools.DrawTool;
+			import com.esri.ags.utils.JSONUtil;
+			import com.esri.viewer.AppEvent;
+			
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.rpc.AsyncToken;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			
+			import widgets.Portal.events.AddByIdEvent;
+			protected function cbLayer_clickHandler(event:MouseEvent):void
+			{
+				data.isSelected=cbLayer.selected
+					
+				AppEvent.dispatch("Add_By_Id",data);
+				var addByIdEvent:AddByIdEvent=new AddByIdEvent(data,"Add_By_Id",cbLayer.selected,true,false);
+				
+			}
+			private function HTTPService_ResultHandler(event:ResultEvent):void
+			{
+				var obj:Object=JSONUtil.decode(event.result as String);
+				var objData:Object=event.token.data;
+				if(obj.id!=null)
+				{
+					objData.type="feature";
+				}
+				else if(obj.layers!=null)
+				{
+					if(obj.singleFusedMapCache)
+					{
+						objData.type="tiled"
+					}
+					else
+					{
+						objData.type="dynamic"
+					}
+				}
+				else
+				{
+					objData.type="WMS"
+				}
+				
+			}
+			private function HTTPService_FaultHandler(event:FaultEvent):void
+			{
+				var jsonService:HTTPService=new HTTPService();
+				jsonService.url=data.url+"?SERVICE=WMS&REQUEST=GetCapabilities";
+				jsonService.resultFormat="object";
+				jsonService.method=URLRequestMethod.POST;
+				var token:AsyncToken = jsonService.send();
+				token.type="WMS";
+				token.addResponder( new mx.rpc.Responder(HTTPService_ResultHandler, HTTPService_FaultHandler));
+				
+			}
+			
+			public override function set data(value:Object):void
+			{
+				super.data = value;
+				itemrenderer1_dataChangeHandler();
+			}
+			
+			protected function itemrenderer1_dataChangeHandler(event:FlexEvent=null):void
+			{
+				if(data)
+				{
+					cbLayer.selected=data.isSelected;
+				}
+				
+			}
+			
+		]]>
+	</fx:Script>
+	
+	
+<mx:HBox  width="100%" paddingLeft="3"  height="30" verticalAlign="middle">
+	<s:CheckBox id="cbLayer" click="cbLayer_clickHandler(event)"  />
+	<s:Label text="{data.title}" verticalAlign="bottom"/>
+</mx:HBox>	
+</s:ItemRenderer>

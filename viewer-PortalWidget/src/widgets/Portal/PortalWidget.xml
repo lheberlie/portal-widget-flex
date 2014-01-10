@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
-    <arcgisonlineurl>http://www.arcgis.com</arcgisonlineurl>
-    <tokenurl>https://www.arcgis.com/sharing/generateToken</tokenurl>
-    <resultsperpage>14</resultsperpage>
-    <defaultsearch>ArcGIS</defaultsearch>
-    <defaultsortfield>avgRating</defaultsortfield>
-    <defaultsortorder>desc</defaultsortorder>
-    <columnsize>
-    </columnsize>
+    
+   <!--     Known Issue: WMS layers will not get added if the spatial reference  -->
+   <!--     of the application is different than the spatial reference supported  -->
+   <!--     by the WMS layer. Also, secured portal items will not be added. -->
+	<arcgisonlineurl>http://www.arcgis.com</arcgisonlineurl>
+	<tokenurl>https://www.arcgis.com/sharing/generateToken</tokenurl>
+	<resultsperpage>14</resultsperpage>
+	<defaultsearch>ArcGIS</defaultsearch>
+	<defaultsortfield>avgRating</defaultsortfield><!-- '','title','created','owner','avgRatings','numViews' -->
+	<defaultsortorder>desc</defaultsortorder><!-- desc, asc-->
+	<columnsize>full</columnsize><!-- full = 2 columns-->
+	<contextRoles label="Role" values="Command,Operation,plan" prompt="true"/>
+	<contextEvent label="Event" values="Hurricane Sandy,floods,fire" prompt="false"/>
+	<SearchByIdName>List of Layers</SearchByIdName>
+	<proxyURL>http://203.199.47.152/Hawk testing/CommonProxy1/proxy.ashx</proxyURL>
+  
 </configuration>

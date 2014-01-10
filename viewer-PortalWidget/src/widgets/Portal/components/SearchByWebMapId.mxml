@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  //////////////////////////////////////////////////////////////////
+  // Copyright (c) 2008-2013 Esri. All Rights Reserved.
+  //
+  // Licensed under the Apache License, Version 2.0 (the "License");
+  // you may not use this file except in compliance with the License.
+  // You may obtain a copy of the License at
+  //
+  //    http://www.apache.org/licenses/LICENSE-2.0
+  //
+  // Unless required by applicable law or agreed to in writing, software
+  // distributed under the License is distributed on an "AS IS" BASIS,
+  // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  // See the License for the specific language governing permissions and
+  // limitations under the License.
+  ////////////////////////////////////////////////////////////////
+-->
+<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" width="350" height="180"
+			   cornerRadius="5" alpha="1.0" close="titlewindow1_closeHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.utils.JSONUtil;
+			import com.esri.viewer.AppEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.AsyncToken;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			
+			import widgets.Portal.events.AddByIdEvent;
+			import widgets.Portal.utils.PortalUtil;
+			[Bindable] public var arrListLayerData:ArrayCollection=new ArrayCollection();
+			private var _portalUtil:PortalUtil=PortalUtil.getInstance();
+			protected function titlewindow1_closeHandler(event:CloseEvent=null):void
+			{
+			
+					PopUpManager.removePopUp(this);
+					AppEvent.dispatch(AddByIdEvent.ADD_BY_ID_CANCEL);
+			
+			}
+			
+			
+			protected function btnAdd_clickHandler(event:MouseEvent):void
+			{
+				try
+				{
+				PopUpManager.removePopUp(this);
+				AppEvent.dispatch("Add_By_Id_Submit");
+				}
+				catch(e:Error)
+				{
+					//trace e.message;
+				}
+				
+			}
+			
+			protected function cbSelectAll_clickHandler(event:MouseEvent):void
+			{
+				_portalUtil.arrAddLayer=new ArrayCollection();
+				_portalUtil.arrRemoveLayer=new ArrayCollection();
+				for(var i:int=0;i<arrListLayerData.length;i++)
+				{
+					var httpService:HTTPService=new HTTPService();
+					httpService.url=arrListLayerData[i].url+"?f=pjson";
+					arrListLayerData[i].isSelected=cbSelectAll.selected;
+					if(arrListLayerData[i].isSelected)
+					{
+					    _portalUtil.arrAddLayer.addItem(arrListLayerData[i].layer);
+					}
+					else
+					{
+						_portalUtil.arrRemoveLayer.addItem(arrListLayerData[i].layer);	
+					}
+					httpService.resultFormat="text";
+					var token:AsyncToken = httpService.send();
+					token.data=arrListLayerData[i];
+					//token.addResponder( new mx.rpc.Responder(HTTPService_ResultHandler, HTTPService_FaultHandler));
+				}
+				lstLayer.dataProvider=new ArrayCollection();
+				lstLayer.dataProvider=arrListLayerData;
+				
+			}
+			private function HTTPService_ResultHandler(event:ResultEvent):void
+			{
+				var obj:Object=JSONUtil.decode(event.result as String);
+				var objData:Object=event.token.data;
+				if(obj.id!=null)
+				{
+					objData.type="feature";
+				}
+				else if(obj.layers!=null)
+				{
+					if(obj.singleFusedMapCache)
+					{
+						objData.type="tiled"
+					}
+					else
+					{
+						objData.type="dynamic"
+					}
+				}
+				AppEvent.dispatch("Add_By_Id",objData);
+				
+			}
+			private function HTTPService_FaultHandler(event:FaultEvent):void
+			{
+				
+			}
+			
+		]]>
+	</fx:Script>
+	<s:VGroup width="100%" height="100%" horizontalAlign="center">
+		
+		<mx:HBox  width="100%" paddingLeft="3.5" verticalAlign="middle">
+		<s:CheckBox id="cbSelectAll"  click="cbSelectAll_clickHandler(event)" />
+		<s:Label text="Select All" verticalAlign="bottom"/>
+		</mx:HBox>
+		<s:List id="lstLayer" width="100%" height="90%" dataProvider="{arrListLayerData}" itemRenderer="widgets.Portal.renderers.ListlayerItemRenderer"/>
+		<s:HGroup verticalAlign="top" paddingBottom="3">
+		<s:Button label="Add" click="btnAdd_clickHandler(event)"/>
+		<s:Button label="Cancel" click="titlewindow1_closeHandler()"/>
+		</s:HGroup>
+		
+	</s:VGroup>
+	
+	
+</s:TitleWindow>
