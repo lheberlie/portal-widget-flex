@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
+
     
    <!--     Known Issue: WMS layers will not get added if the spatial reference  -->
    <!--     of the application is different than the spatial reference supported  -->
    <!--     by the WMS layer. Also, secured portal items will not be added. -->
 	<arcgisonlineurl>http://www.arcgis.com</arcgisonlineurl>
 	<tokenurl>https://www.arcgis.com/sharing/generateToken</tokenurl>
-	<resultsperpage>14</resultsperpage>
+	<resultsperpage>10</resultsperpage>
 	<defaultsearch>ArcGIS</defaultsearch>
 	<defaultsortfield>avgRating</defaultsortfield><!-- '','title','created','owner','avgRatings','numViews' -->
 	<defaultsortorder>desc</defaultsortorder><!-- desc, asc-->
