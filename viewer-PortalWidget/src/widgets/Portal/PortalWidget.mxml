@@ -21,6 +21,8 @@
                    xmlns:mx="library://ns.adobe.com/flex/mx"
                    xmlns:viewer="com.esri.viewer.*"
                    xmlns:esri="http://www.esri.com/2008/ags"
+                   xmlns:supportClasses="com.esri.ags.portal.supportClasses.*" 
+                   xmlns:Portal="widgets.Portal.*" 
                    xmlns:renderers="widgets.Portal.renderers.*"
                    xmlns:components="widgets.Portal.components.*"
                    currentState="loggedout"
@@ -33,26 +35,56 @@
 
     <fx:Script>
         <![CDATA[
+            import com.as3xls.xls.formula.Functions;
             import com.esri.ags.events.PortalEvent;
+            import com.esri.ags.events.WebMapEvent;
+            import com.esri.ags.geometry.Extent;
             import com.esri.ags.layers.ArcGISDynamicMapServiceLayer;
             import com.esri.ags.layers.ArcGISImageServiceLayer;
+            import com.esri.ags.layers.ArcGISTiledMapServiceLayer;
+            import com.esri.ags.layers.DynamicMapServiceLayer;
             import com.esri.ags.layers.FeatureLayer;
             import com.esri.ags.layers.KMLLayer;
             import com.esri.ags.layers.Layer;
+            import com.esri.ags.layers.WMSLayer;
+            import com.esri.ags.layers.WMTSLayer;
+            import com.esri.ags.portal.WebMapUtil;
             import com.esri.ags.portal.supportClasses.PortalItem;
             import com.esri.ags.portal.supportClasses.PortalQueryParameters;
             import com.esri.ags.portal.supportClasses.PortalQueryResult;
+            import com.esri.ags.tasks.GeometryService;
+            import com.esri.ags.tasks.supportClasses.ProjectParameters;
+            import com.esri.ags.utils.JSONUtil;
+            import com.esri.viewer.AppEvent;
+            import com.esri.viewer.ViewerContainer;
 
+            import mx.collections.ArrayCollection;
             import mx.collections.ArrayList;
             import mx.controls.Alert;
+            import mx.managers.PopUpManager;
+            import mx.rpc.AsyncResponder;
+            import mx.rpc.AsyncToken;
+            import mx.rpc.Fault;
             import mx.rpc.events.FaultEvent;
+            import mx.rpc.events.ResultEvent;
+            import mx.rpc.http.HTTPService;
+            import mx.utils.StringUtil;
 
+            import widgets.MapSwitcher.Basemap;
+            import widgets.Portal.components.JsonFeatureServer;
             import widgets.Portal.components.PortalLoginPopup;
+            import widgets.Portal.components.SearchByTagWindow;
+            import widgets.Portal.components.SearchByWebMapId;
             import widgets.Portal.components.SortObject;
+            import widgets.Portal.events.AddByIdEvent;
             import widgets.Portal.events.AddToMapEvent;
             import widgets.Portal.events.LoginEvent;
             import widgets.Portal.events.PortalQueryEvent;
+            import widgets.Portal.events.RestQueryEvent;
+            import widgets.Portal.events.SearchByTagEvent;
             import widgets.Portal.events.SortByEvent;
+            import widgets.Portal.events.ZoomToEvent;
+            import widgets.Portal.utils.PortalUtil;
 
 
             private var _defaultSortField:String = "";
@@ -61,7 +93,7 @@
             private var _numberPerPage:int = 14; //default
 
             [Bindable]
-            private var _numberColumns:int = 1; //default
+            private var _numberColumns:int = 2; //default
 
             [Bindable]
             private var _searchText:String = "";
@@ -95,13 +127,20 @@
 
 
             private var defaultQueryParameters:PortalQueryParameters;
+            private var objRoles:Object=new Object()
+            private var objEvent:Object=new Object()
 
+            private var geometriService:GeometryService=new GeometryService();
+            private var _portalUtil:PortalUtil=PortalUtil.getInstance();
+            private var strProxyURL:String;
+			
             protected function init():void
             {
                 if (configXML)
                 {
                     trace("loaded XML");
 
+                    geometriService.url=configData.geometryService.url;
                     _tokenURL = configXML.tokenurl;
                     _arcgisOnlineURL = configXML.arcgisonlineurl;
                     _numberPerPage = configXML.resultsperpage;
@@ -112,6 +151,7 @@
                     portalArcGIS.url = _arcgisOnlineURL;
 
 
+                    strProxyURL=configXML.proxyURL.toString();
                     /*  ADD THIS TO ADD TO DEFAULT SORTING CAPABILITY */
 
                     _defaultSortField = (configXML.defaultsortfield == "") ? null : configXML.defaultsortfield;
@@ -147,9 +187,142 @@
                     sorter.selectedSort = lastSortOrder;
                     sorter.addEventListener("sortClick", sorter_sortClickHandler);
                     addEventListener("addSearchItem", addMapLayer);
+                    addEventListener("ZoomToItem",zoomToHandler);
+                    addEventListener("searchItemByID",searchByIdHandler)
+                    AppEvent.addListener("Add_By_Id",addByIdHandler);
+                    AppEvent.addListener("Add_By_Id_Submit",addSubmitHandler);
+                    AppEvent.addListener(AddByIdEvent.ADD_BY_ID_CANCEL,addCancelHandler);
+                    
+                    objEvent.type=configXML.contextEvent.@label.toString();
+                    objEvent.collection=new ArrayCollection(configXML.contextEvent.@values.toString().split(","));
+                    objEvent.prompt=configXML.contextEvent.@prompt.toString();	
+					
+                    objRoles.type=configXML.contextRoles.@label.toString();
+                    objRoles.collection=new ArrayCollection(configXML.contextRoles.@values.toString().split(","));
+                    objRoles.prompt=configXML.contextRoles.@prompt.toString();
                 }
             }
+            private  function searchByIdHandler(event:AddToMapEvent):void
+            {
+                var webMapUtil:WebMapUtil=new WebMapUtil();
+                webMapUtil.portalURL=event.item.portal.url//_arcgisOnlineURL;
+                webMapUtil.createMapById(event.item.id, new AsyncResponder(webMapUtil_createMapByIdResultHandler, webMapUtil_createMapByIdFaultHandler));
+				
+            }
+			
+            private function addSubmitHandler(event:AppEvent):void
+            {
+	
+                for(var i:int=0;i<_portalUtil.arrAddLayer.length;i++)
+                {
+			map.addLayer(_portalUtil.arrAddLayer[i]);
+                }
+                for(var j:int=0;j<_portalUtil.arrRemoveLayer.length;j++)
+                {
+			if(_portalUtil.arrRemoveLayer[j])
+			{
+				map.removeLayer(map.getLayer(_portalUtil.arrRemoveLayer[j].id));
+			}
+                }
+            }
+			
+            private function addCancelHandler(event:AppEvent):void
+            {
+                _portalUtil.arrAddLayer=new ArrayCollection();
+                _portalUtil.arrRemoveLayer=new ArrayCollection();
+            }
+			
+            private function addByIdHandler(event:AppEvent):void
+            {
+                if(map.getLayer(event.data.title)||event.data.isSelected==false)
+                {
+                	if(map.getLayer(event.data.title))
+                	{
+                	_portalUtil.arrRemoveLayer.addItem(map.getLayer(event.data.title));
+                	}
+	                for(var i:int=0;i<_portalUtil.arrAddLayer.length;i++)
+	                {
+		                if(_portalUtil.arrAddLayer[i].id==event.data.title)
+		                {
+		                	_portalUtil.arrAddLayer.removeItemAt(i);
+		                }
+	                }
+                }
+                else if(map.getLayer(event.data.title)==null||event.data.isSelected==true)
+                {
+                _portalUtil.arrAddLayer.addItem(event.data.layer);
+        	}
+            }
+	    
+            private var arrWebMapLayer:ArrayCollection;
+	    
+            private function webMapUtil_createMapByIdResultHandler(result:Object,token:Object=null):void
+            {
+	            cursorManager.removeBusyCursor();
+	            if(result.item.type=="Web Map")
+	            {
+		            arrWebMapLayer=new ArrayCollection();
+		            for(var i:int=0;i<result.map.layers.length;i++)
+		            {
+			            if((result.map.layers[i].id as String).toLocaleUpperCase().indexOf("BASE")==-1)
+			            {
+				            var obj:Object=new Object();
+				            obj.title=result.map.layers[i].name;
+				            obj.layer=result.map.layers[i];
+				            obj.layer.id=result.map.layers[i].name;
+				            obj.isSelected=(map.getLayer(result.map.layers[i].name)!=null)
+				            arrWebMapLayer.addItem(obj);
+			            }
+		            }
+	            }
+	            if(arrWebMapLayer.length>0)
+	            {
+		            var idPopUp:SearchByWebMapId=new SearchByWebMapId();
+		            idPopUp.arrListLayerData=arrWebMapLayer;
+		            idPopUp.title=configXML.SearchByIdName.toString();
+		            PopUpManager.addPopUp(idPopUp,map,true);
+		            PopUpManager.centerPopUp(idPopUp);
+	            }
+            }
+	    
+            private function webMapUtil_createMapByIdFaultHandler(result:Object,token:Object=null):void
+            {
+	            cursorManager.removeBusyCursor();
+	            Alert.show("fault");
+            }
+	    
+            private function zoomToHandler(event:ZoomToEvent):void
+            {
+	            if(map.getLayer(event.item.title))
+	            {
+		            var param:ProjectParameters=new ProjectParameters();
+		            if(event.item.type=="Map Service"||"Feature Service")
+		            {
+			            param.outSpatialReference=map.spatialReference;
+			            param.geometries=[map.getLayer(event.item.title).initialExtent]
+			            geometriService.project(param,new AsyncResponder(onResult,onFault));
+		            }
+		            else	
+		            {
+			            param.outSpatialReference=map.spatialReference;
+			            param.geometries=[event.item.extent]
+			            geometriService.project(param,new AsyncResponder(onResult,onFault));
+		            }
+	            } 
+            }
+	    
+            private function onResult(feature:Object,token:Object=null):void
+            {
+            	map.extent=feature[0]
+            }
+	    
+            private function onFault(fault:Fault,token:Object=null):void
+            {
+            	Alert.show("fault");
+            }  
 
+            private var jsonQuery:JsonFeatureServer
+			
             protected function addMapLayer(event:AddToMapEvent):void
             {
                 trace("addMapLayer");
@@ -161,38 +334,171 @@
                 {
                     case PortalItem.TYPE_FEATURE_SERVICE:
                     {
-                        layer = new FeatureLayer(pItem.url);
-                        break;
+	                    var obj:Object;
+	                    cursorManager.setBusyCursor();
+	                    jsonQuery=new JsonFeatureServer();
+	                    jsonQuery.addEventListener(RestQueryEvent.TYPE,HTTPService_ResultHandler)
+	                    obj=jsonQuery.doQuery(pItem.url,pItem.type); 
+						
+	                    function HTTPService_ResultHandler(event:RestQueryEvent):void
+	                    {
+		                    obj=event.obj;
+		                    cursorManager.removeBusyCursor();
+		                    if(obj.layers)
+		                    {
+			                    for(var i:int=obj.layers.length-1;i>=0;i--)
+			                    {
+				                    layer=new FeatureLayer(pItem.url+"/"+obj.layers[i].id);
+				                    layer.name = pItem.title;
+				                    layer.id=pItem.title;
+				                    map.addLayer(layer);
+			                    }
+		                    }
+		                    else if(obj.type=="Feature Layer")
+		                    {
+			                    layer=new FeatureLayer(pItem.url);
+			                    layer.name = pItem.title;
+			                    layer.id=pItem.title;
+			                    map.addLayer(layer);
+		                    }
+							
+	                    }
+	                    break;
                     }
                     case PortalItem.TYPE_MAP_SERVICE:
                     {
-                        layer = new ArcGISDynamicMapServiceLayer(pItem.url);
-                        break;
+	                    /*tiled remaining */
+	                    cursorManager.setBusyCursor();
+	                    jsonQuery=new JsonFeatureServer();
+	                    jsonQuery.addEventListener(RestQueryEvent.TYPE,HTTPService_ResultHandler2)
+	                    obj=jsonQuery.doQuery(pItem.url,pItem.type);
+	                    function HTTPService_ResultHandler2(event:RestQueryEvent):void
+	                    {
+		                    cursorManager.removeBusyCursor();
+		                    if(event.obj.singleFusedMapCache)
+		                    {
+			                    layer = new ArcGISTiledMapServiceLayer(pItem.url);
+			                    layer.name = pItem.title;
+			                    layer.id=layer.name;
+			                    map.addLayer(layer);
+		                    }
+		                    else
+		                    {
+			                    layer = new ArcGISDynamicMapServiceLayer(pItem.url);
+			                    layer.name = pItem.title;
+			                    layer.id=layer.name;
+			                    map.addLayer(layer);
+		                    }	
+	                    }
+	                    break;
                     }
                     case PortalItem.TYPE_KML_SERVICE:
                     {
                         layer = new KMLLayer(pItem.url);
+                        layer.name = pItem.title;
+                        layer.id=layer.name;
+                        map.addLayer(layer); 
                         break;
                     }
                     case PortalItem.TYPE_IMAGE_SERVICE:
                     {
                         layer = new ArcGISImageServiceLayer(pItem.url);
+                        layer.name = pItem.title;
+                        layer.id=layer.name;
+                        map.addLayer(layer); 
                         break;
+                    }
+                    case PortalItem.TYPE_WMS_SERVICE:
+                    {
+	                    cursorManager.setBusyCursor();
+	                    jsonQuery=new JsonFeatureServer();
+	                    jsonQuery.addEventListener(RestQueryEvent.TYPE,HTTPService_ResultHandler1)
+	                    obj=jsonQuery.doQuery(pItem.url,pItem.type,strProxyURL);   
+								
+	                    function HTTPService_ResultHandler1(event:RestQueryEvent):void
+	                    {
+		                    cursorManager.removeBusyCursor();
+		                    try
+		                    {
+			                    var tempList:Array=new Array();
+			                    if(event.obj.WMS_Capabilities)
+			                    {
+			                    	if(event.obj.WMS_Capabilities.Capability.Layer.Layer is ArrayCollection)
+			                    	{
+			                    		obj=event.obj.WMS_Capabilities.Capability.Layer.Layer as Object;//JSONUtil.decode(event.obj as String);
+			                    	}
+			                    	else if(event.obj.WMS_Capabilities.Capability.Layer.Layer.Layer is ArrayCollection)
+			                    	{
+			                    		obj=event.obj.WMS_Capabilities.Capability.Layer.Layer.Layer;
+			                    	}
+			                    	else
+			                    	{
+			            	        	obj=event.obj.WMS_Capabilities.Capability.Layer
+			                    	}
+
+			                    	for(var i:int=0;i<obj.length;i++)
+			                    	{
+			                    		if(obj[i].Name)				
+			                    		{
+			                    			tempList.push(new String(obj[i].Name));
+			                    		}
+			                    		else
+			                    		{
+			                    			tempList.push(new String(i));
+			                    		} 
+			                    	} 
+		   									
+			                    	layer=new WMSLayer();
+			                    	layer.name = pItem.title;
+			                    	layer.id=layer.name;
+			                    	(layer as WMSLayer).disableClientCaching=false;
+			                    	(layer as WMSLayer).proxyURL=strProxyURL;
+			                    	(layer as WMSLayer).url=pItem.url;
+			                    	(layer as WMSLayer).alpha=1.0;
+			                    	(layer as WMSLayer).visibleLayers=new ArrayList(tempList); 
+			                    	map.addLayer(layer as WMSLayer);
+			                    }
+			                    else
+			                    {
+				                    obj=event.obj.WMT_MS_Capabilities
+				                    layer=new WMTSLayer();
+				                    layer.name =pItem.title;
+				                    layer.id=layer.name;
+				                    (layer as WMTSLayer).cacheAsBitmap=true;
+				                    (layer as WMTSLayer).proxyURL=strProxyURL;
+				                    (layer as WMTSLayer).url=pItem.url
+				                    layer.alpha=1.0	
+				                    map.addLayer(layer as WMTSLayer);
+			                    }				
+		                    }
+		                    catch(e:Error)
+		                    {
+		                    	trace(e)
+		                    }
+	                    }
+	                    break;
+                    }
+                    case PortalItem.TYPE_WEB_MAP:
+                    {
+	                    cursorManager.setBusyCursor();
+	                    _portalUtil.arrAddLayer=new ArrayCollection();
+	                    _portalUtil.arrRemoveLayer=new ArrayCollection();
+	                    var webMapUtil:WebMapUtil=new WebMapUtil();
+	                    webMapUtil.portalURL=event.item.portal.url//_arcgisOnlineURL;
+	                    webMapUtil.createMapById(event.item.id, new AsyncResponder(webMapUtil_createMapByIdResultHandler, webMapUtil_createMapByIdFaultHandler));
+	                    break;
                     }
                     default:
                     {
+                        cursorManager.removeBusyCursor();
                         Alert.show(pItem.type + " type not implemented in this sample.", "Unable to process layer type.");
                         break;
                     }
                 }
-
-                if (layer)
-                {
-                    layer.name = pItem.title;
-                    map.addLayer(layer);
-                }
+								
             }
-
+							
+							
             protected function lblLogin_clickHandler(event:MouseEvent):void
             {
                 //re-search
@@ -216,13 +522,19 @@
             protected function loginProvided(event:widgets.Portal.events.LoginEvent):void
             {
                 trace("Provided");
-                username = event.username;
-                password = event.password;
-                this.setCurrentState("loggedin");
-
-                portalArcGIS.signInWithCredentials(username, password);
+		if(event.username==""&&event.password=="")
+		{
+			Alert.show("Invalid username or password","Error");
+		}
+		else
+		{
+			username = event.username;
+			password = event.password;
+			this.setCurrentState("loggedin");
+			portalArcGIS.signInWithCredentials(username, password);
+		}
             }
-
+							
             protected function loginCancelled(event:LoginEvent):void
             {
                 trace("Cancelled");
@@ -235,10 +547,15 @@
                 if (portalArcGIS.signedIn)
                 {
                     LoginStatusLabel.text = "Logged in: " + username;
+                    lblMyContent.visible=true;
+                    lblLogin.text="Logout"
+									
                 }
                 else
                 {
                     LoginStatusLabel.text = resourceManager.getString('PortalWidgetStrings', 'getPublicOnly');
+                    lblMyContent.visible=false;
+                    lblLogin.text="Login"
                 }
                 portalArcGIS_sendQueryItems(_searchText);
             }
@@ -247,10 +564,17 @@
             protected function portalArcGIS_sendQueryItems(queryString:String):void
             {
                 trace("sendQueryItems");
-
+                queryString=StringUtil.trim(queryString);
+                searchTextInput.text=StringUtil.trim(queryString);
+                if(queryString=="")
+                {    
+                	queryString=configXML.defaultsearch;
+                }
+								
                 _searchText = queryString;
                 lastQueryString = queryString;
-
+								
+                cursorManager.setBusyCursor();
                 var queryParameters:PortalQueryParameters = defaultQueryParameters.clone();
                 queryParameters.sortField = lastSortOrder.sortField;
                 queryParameters.sortOrder = lastSortOrder.sortOrder;
@@ -268,7 +592,8 @@
             protected function portalArcGIS_queryItemsCompleteHandler(event:PortalEvent):void
             {
                 trace("queryItemsComplete");
-
+                rdbSearchByTags.selected=false;
+                cursorManager.removeBusyCursor();
                 lastQueryResult = event.queryResult as PortalQueryResult;
                 _searchTotal = lastQueryResult.totalResults;
                 var resultsArray:Array = lastQueryResult.results;
@@ -280,10 +605,20 @@
                     portalItemsArrayList = new ArrayList(resultsArray);
                     portalItemsList.selectedItem = null;
                 }
+                else
+                {
+                	portalItemsArrayList=new ArrayList();
+                }
             }
-
             protected function portalArcGIS_faultHandler(event:FaultEvent):void
             {
+                cursorManager.removeBusyCursor();
+                rdbSearchByTags.selected=false;
+                if(event.fault)
+                {
+	                if(event.fault.faultDetail)
+	                	Alert.show(event.fault.faultDetail,"Error");
+                }
                 trace("faultHandler");
             }
 
@@ -295,6 +630,38 @@
 
                 portalArcGIS_sendQueryItems(lastQueryString);
             }
+							
+            protected function rdbSearchByTags_clickHandler(event:MouseEvent):void
+            {	
+	            var popUp:SearchByTagWindow=new SearchByTagWindow();
+	            popUp.addEventListener("SearchEvent",searchByTagHandler);
+	            popUp.title="Search by Tags";
+	            popUp.arrDdlRoles=objRoles.collection;
+	            popUp.arrDdlEvent=objEvent.collection;
+	            popUp.objData={Roles:objRoles,Event:objEvent}
+	            PopUpManager.addPopUp(popUp,map,true);
+	            PopUpManager.centerPopUp(popUp);
+            }
+							
+            private function searchByTagHandler(event:SearchByTagEvent):void
+            {
+	            searchTextInput.text=event.searchTag;
+	            portalArcGIS_sendQueryItems(event.searchTag)
+            }
+							
+	    protected function lvlMyContent_clickHandler(event:MouseEvent):void
+            {
+	            var queryParameters:PortalQueryParameters = new PortalQueryParameters();
+	            queryParameters.ofUser(username);
+	            portalArcGIS.queryItems(queryParameters);
+            }
+							
+            protected function portalWidget_openHandler(event:Event):void
+            {
+	            portalWidget.minWidth=portalWidget.width;
+	            portalWidget.minHeight=portalWidget.height;
+            }
+							
         ]]>
     </fx:Script>
 
@@ -307,7 +674,7 @@
                      queryItemsComplete="portalArcGIS_queryItemsCompleteHandler(event)"/>
     </fx:Declarations>
 
-    <viewer:WidgetTemplate id="portalWidget"
+	<viewer:WidgetTemplate id="portalWidget" open="portalWidget_openHandler(event)"
                            width="{70 + (_numberColumns * 400)}" height="550">
         <viewer:layout>
             <s:VerticalLayout horizontalAlign="center" verticalAlign="middle"/>
@@ -332,17 +699,15 @@
                      maxDisplayedLines="1"
                      showTruncationTip="true"
                      text="{_searchTotal.toString()+ ' ' + resourceManager.getString('PortalWidgetStrings', 'resultsFor')} '{_searchText}'"/>
+	    <s:RadioButton id="rdbSearchByTags" label="Search by Tags" click="rdbSearchByTags_clickHandler(event)"/>
         </s:HGroup>
         <s:HGroup width="100%" horizontalAlign="right">
             <s:Label id="LoginStatusLabel" styleName="red"/>
-            <s:Spacer width="100%"/>
-            <s:Label id="lblLogin"
-                     buttonMode="true"
-                     click="lblLogin_clickHandler(event)"
-                     mouseChildren="false"
-                     text.loggedin="Logout"
-                     text.loggedout="Login"
-                     useHandCursor="true"/>
+            <s:Spacer width="10%"/>
+			<s:Label id="lblMyContent" text="MY CONTENT" visible="false"  click="lvlMyContent_clickHandler(event)" buttonMode="true" />
+			<s:Spacer width="80%"/>
+			<s:Label id="lblLogin"  useHandCursor="true" buttonMode="true" mouseChildren="false" click="lblLogin_clickHandler(event)"/>
+			
         </s:HGroup>
 
         <s:VGroup width="100%"
@@ -366,6 +731,8 @@
                 <s:List id="portalItemsList"
                         width="100%" height="99%"
                         allowMultipleSelection="false"
+                        autoLayout="true" 
+                        useVirtualLayout="false"
                         borderVisible="false"
                         dataProvider="{portalItemsArrayList}">
                     <s:layout>

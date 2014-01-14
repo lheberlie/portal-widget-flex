@@ -42,10 +42,12 @@
               cornerRadius="3"
               enabled="{hostComponent.hasPrevious}"
               fontSize="12"
-              label="Previous"/>
+              label="Previous"
+              visible="{hostComponent.hasPrevious}"/>
 
     <s:List id="pageList"
             height="100%"
+            selectionColor="black"
             allowMultipleSelection="false"
             borderVisible="false"
             contentBackgroundAlpha="0"
@@ -56,7 +58,7 @@
         </s:layout>
         <s:itemRenderer>
             <fx:Component>
-                <s:ItemRenderer height="100%"
+                <s:ItemRenderer height="100%" width="100%"
                                 autoDrawBackground="false"
                                 buttonMode="{data.enabled}"
                                 enabled="{data.enabled}"
@@ -74,7 +76,7 @@
                                                 paddingRight="6"
                                                 verticalAlign="middle"/>
                         </s:layout>
-                        <s:Label height="100%"
+                        <s:Label height="100%" backgroundColor.selected="0x262626"
                                  color.selected="{getStyle('focusColor')}"
                                  text="{data.label}"
                                  verticalAlign="middle"/>
@@ -91,6 +93,7 @@
               cornerRadius="3"
               enabled="{hostComponent.hasNext}"
               fontSize="12"
-              label="Next"/>
+              label="Next"
+              visible="{hostComponent.hasNext}"/>
 
 </s:Skin>
